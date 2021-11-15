@@ -7,6 +7,7 @@ import pytz
 import psycopg2
 import psycopg2.extras
 import singer
+import urllib.parse
 
 from typing import List
 from dateutil.parser import parse
@@ -53,11 +54,46 @@ def open_connection(conn_config, logical_replication=False):
         cfg['sslmode'] = conn_config['sslmode']
 
     if logical_replication:
-        cfg['connection_factory'] = psycopg2.extras.LogicalReplicationConnection
+        try:
+            LOGGER.info('----------------------------')
+            return psycopg2.connect(connection_factory=psycopg2.extras.LogicalReplicationConnection, **cfg)
 
-    conn = psycopg2.connect(**cfg)
+        except Exception as e:
+            try:
+                LOGGER.info('first fail')
+                cfg['password'] = conn_config['password'],
+                args = ' '.join([f'{k}={v}' for k,v in cfg.items()])
+                return psycopg2.connect(None, psycopg2.extras.LogicalReplicationConnection, args)
 
-    return conn
+            except Exception as e:
+                try:
+                    LOGGER.info('second fail')
+                    cfg['password'] = urllib.parse.unquote(conn_config['password']),
+                    args = ' '.join([f'{k}={v}' for k,v in cfg.items()])
+                    return psycopg2.connect(None, psycopg2.extras.LogicalReplicationConnection, args)
+
+                except Exception as e:
+                    try:
+                        LOGGER.info('third fail')
+                        cfg['password'] = conn_config['password'],
+                        cfg['connection_factory'] = psycopg2.extras.LogicalReplicationConnection
+                        args = ' '.join([f'{k}={v}' for k,v in cfg.items()])
+                        return psycopg2.connect(args)
+
+                    except Exception as e:
+                        try:
+                            LOGGER.info('fourth fail')
+                            cfg['password'] = urllib.parse.unquote(conn_config['password']),
+                            cfg['connection_factory'] = psycopg2.extras.LogicalReplicationConnection
+                            args = ' '.join([f'{k}={v}' for k,v in cfg.items()])
+                            return psycopg2.connect(args)
+
+                        except Exception as e:
+                            LOGGER.info('fifth fail')
+                            raise
+
+    return psycopg2.connect(**cfg)
+
 
 def prepare_columns_for_select_sql(c, md_map):
     column_name = ' "{}" '.format(canonicalize_identifier(c))
