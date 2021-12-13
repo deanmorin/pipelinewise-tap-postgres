@@ -74,7 +74,7 @@ SELECT
   attname                                               AS column_name,
   i.indisprimary                                        AS primary_key,
   format_type(a.atttypid, NULL::integer)                AS data_type,
-  pgd.description                                       AS column_comment,
+  pg_catalog.col_description(attrelid, attnum)          AS column_comment,
   information_schema._pg_char_max_length(CASE WHEN COALESCE(subpgt.typtype, pgt.typtype) = 'd'
                                               THEN COALESCE(subpgt.typbasetype, pgt.typbasetype) ELSE COALESCE(subpgt.oid, pgt.oid)
                                           END,
@@ -93,10 +93,6 @@ FROM pg_attribute a
 LEFT JOIN pg_type AS pgt ON a.atttypid = pgt.oid
 JOIN pg_class
   ON pg_class.oid = a.attrelid
-INNER JOIN pg_catalog.pg_description pgd 
- ON (pgd.objoid=pg_class.oid)
-INNER JOIN information_schema.columns c 
- ON (pgd.objsubid=c.ordinal_position)
 JOIN pg_catalog.pg_namespace n
   ON n.oid = pg_class.relnamespace
 LEFT OUTER JOIN pg_index as i
