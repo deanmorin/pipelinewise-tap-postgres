@@ -132,6 +132,8 @@ def sync_method_for_streams(streams, state, default_replication_method):
             lookup[stream['tap_stream_id']] = 'logical_initial_interrupted'
             traditional_steams.append(stream)
             # do any required logical replication after inital sync is complete
+            LOGGER.warning('---------------------------------------------------------------')
+            LOGGER.warning('Appending for interrupted stream')
             logical_streams.append(stream)
 
         # inconsistent state
@@ -145,6 +147,8 @@ def sync_method_for_streams(streams, state, default_replication_method):
             lookup[stream['tap_stream_id']] = 'logical_initial'
             traditional_steams.append(stream)
             # do any required logical replication after inital sync is complete
+            LOGGER.warning('---------------------------------------------------------------')
+            LOGGER.warning('Appending for initial stream')
             logical_streams.append(stream)
 
         else:  # no xmin but we have an lsn
