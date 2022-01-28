@@ -226,13 +226,18 @@ def sync_logical_streams(conn_config, logical_streams, traditional_streams, stat
             if (stream in traditional_stream_ids and bookmark['last_replication_method'] == 'LOG_BASED'):
                 LOGGER.info('+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++')
                 LOGGER.info(f'stream: {stream}')
+                LOGGER.info(f'bookmark: {bookmark}')
+                LOGGER.info([x for x in logical_streams if x['tap_stream_id'] == 'public-validation_rule_failure'])
                 LOGGER.info(logical_streams)
+                LOGGER.info(selected_streams)
 
             if (
                 bookmark == {}
                 or bookmark['last_replication_method'] != 'LOG_BASED'
                 or stream in selected_streams
             ):
+                LOGGER.info('***********************************************************')
+                LOGGER.info('committing new bookmark')
                 new_state['bookmarks'][stream] = bookmark
         state = new_state
 
