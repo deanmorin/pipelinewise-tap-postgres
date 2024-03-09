@@ -167,7 +167,12 @@ def sync_table(conn_info, stream, state, desired_columns, md_map):
 
                 rows_saved = 0
                 for rec in cur:
-                    xmin = rec['xmin'].strftime("%Y-%m-%d") if conn_info['resync_with_commit_timestamp'] else rec['xmin']
+
+                    if rec['xmin'] and conn_info['resync_with_commit_timestamp']:
+                        xmin = rec['xmin'].strftime("%Y-%m-%d")
+                    else:
+                        xmin = rec['xmin']
+                        
                     rec = rec[:-1]
                     record_message = post_db.selected_row_to_singer_message(stream,
                                                                             rec,
