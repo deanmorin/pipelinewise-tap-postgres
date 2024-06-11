@@ -116,8 +116,7 @@ def sync_method_for_streams(streams, state, default_replication_method):
             continue
 
         if replication_method == 'LOG_BASED' and stream_metadata.get((), {}).get('is-view'):
-            raise Exception(f'Logical Replication is NOT supported for views. ' \
-                            f'Please change the replication method for {stream["tap_stream_id"]}')
+            continue 
 
         if replication_method == 'FULL_TABLE':
             lookup[stream['tap_stream_id']] = 'full'
@@ -194,7 +193,7 @@ def sync_traditional_stream(conn_config, stream, state, sync_method, end_lsn):
     return state
 
 
-def sync_logical_streams(conn_config, logical_streams, state, end_lsn, state_file):
+def sync_logical_streams(conn_config, logical_streams, traditional_streams, state, end_lsn, state_file):
     """
     Sync streams that use LOG_BASED method
     """
@@ -212,10 +211,20 @@ def sync_logical_streams(conn_config, logical_streams, state, end_lsn, state_fil
             selected_streams.add("{}".format(stream['tap_stream_id']))
 
         new_state = dict(currently_syncing=state['currently_syncing'], bookmarks={})
+        traditional_stream_ids = [s['tap_stream_id'] for s in traditional_streams]
 
         for stream, bookmark in state['bookmarks'].items():
-            if bookmark == {} or bookmark['last_replication_method'] != 'LOG_BASED' or stream in selected_streams:
+            if (
+                bookmark == {}
+                or bookmark['last_replication_method'] != 'LOG_BASED'
+                or stream in selected_streams
+                # The first time a LOG_BASED stream runs it needs to do an
+                # initial full table sync, and so will be treated as a
+                # traditional stream.
+                or (stream in traditional_stream_ids and bookmark['last_replication_method'] == 'LOG_BASED')
+            ):
                 new_state['bookmarks'][stream] = bookmark
+
         state = new_state
 
         state = logical_replication.sync_tables(conn_config, logical_streams, state, end_lsn, state_file)
@@ -319,7 +328,7 @@ def do_sync(conn_config, catalog, default_replication_method, state, state_file=
     for dbname, streams in itertools.groupby(logical_streams,
                                              lambda s: metadata.to_map(s['metadata']).get(()).get('database-name')):
         conn_config['dbname'] = dbname
-        state = sync_logical_streams(conn_config, list(streams), state, end_lsn, state_file)
+        state = sync_logical_streams(conn_config, list(streams), traditional_streams, state, end_lsn, state_file)
     return state
 
 
@@ -405,8 +414,22 @@ def main_impl():
         'debug_lsn': args.config.get('debug_lsn') == 'true',
         'max_run_seconds': args.config.get('max_run_seconds', 43200),
         'break_at_end_lsn': args.config.get('break_at_end_lsn', True),
-        'logical_poll_total_seconds': float(args.config.get('logical_poll_total_seconds', 0))
+        'logical_poll_total_seconds': float(args.config.get('logical_poll_total_seconds', 0)),
+        'use_replica': args.config.get('use_replica', False),
+        'resync_with_commit_timestamp': args.config.get('resync_with_commit_timestamp', False),
     }
+
+    if conn_config['use_replica']:
+        replica_config = {
+            # Required replica config keys
+            'replica_host': args.config['replica_host'],
+            'replica_user': args.config['replica_user'],
+            'replica_password': args.config['replica_password'],
+            'replica_port': args.config['replica_port'],
+            'replica_dbname': args.config['replica_dbname'],
+        }
+
+        conn_config = { **conn_config, **replica_config }
 
     if args.config.get('ssl') == 'true':
         conn_config['sslmode'] = 'require'
