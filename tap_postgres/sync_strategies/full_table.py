@@ -128,17 +128,17 @@ def sync_table(conn_info, stream, state, desired_columns, md_map):
                 xmin = singer.get_bookmark(state, stream['tap_stream_id'], 'xmin')
                 if xmin:
                     LOGGER.info("Resuming Full Table replication %s from xmin %s", nascent_stream_version, xmin)
-                    select_sql = """SELECT {}, xmin::text::bigint
-                                      FROM {} where age(xmin::xid) <= age('{}'::xid)
-                                     ORDER BY xmin::text ASC""".format(','.join(escaped_columns),
-                                                                       fq_table_name,
-                                                                       xmin)
+                    select_sql = """SELECT {}, xmin::text::int
+                                      FROM {} where xmin::text::int >= {}
+                                    ORDER BY xmin::text::int ASC""".format(','.join(escaped_columns),
+                                                                           fq_table_name,
+                                                                           xmin)
                 else:
                     LOGGER.info("Beginning new Full Table replication %s", nascent_stream_version)
-                    select_sql = """SELECT {}, xmin::text::bigint
+                    select_sql = """SELECT {}, xmin::text::int
                                       FROM {}
-                                     ORDER BY xmin::text ASC""".format(','.join(escaped_columns),
-                                                                       fq_table_name)
+                                     ORDER BY xmin::text::int ASC""".format(','.join(escaped_columns),
+                                                                            fq_table_name)
 
                 LOGGER.info("select %s with itersize %s", select_sql, cur.itersize)
                 cur.execute(select_sql)
