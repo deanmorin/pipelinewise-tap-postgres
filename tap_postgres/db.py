@@ -68,6 +68,14 @@ def prepare_columns_for_select_sql(c, md_map):
                f'OR {column_name} > \'9999-12-31 23:59:59.999\' THEN \'9999-12-31 23:59:59.999\' ' \
                f'ELSE {column_name} ' \
                f'END AS {column_name}'
+    # psycopg2 2.9.2+ raises 'year NNNNN is out of range' while typecasting dates
+    # past year 9999 during fetch (psycopg2 #1307); clamp them in SQL like timestamps
+    if ('properties', c) in md_map and md_map[('properties', c)]['sql-datatype'] == 'date':
+        return f'CASE ' \
+               f'WHEN {column_name} < \'0001-01-01\' ' \
+               f'OR {column_name} > \'9999-12-31\' THEN \'9999-12-31\' ' \
+               f'ELSE {column_name} ' \
+               f'END AS {column_name}'
     return column_name
 
 def prepare_columns_sql(c):
